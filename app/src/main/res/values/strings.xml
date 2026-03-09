@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">WaxWatch</string>
+    <string name="global_settings_title">Global Settings</string>
+    <string name="global_settings_desc">Configure your baseline chain wax life. The calculator sets an absolute maximum distance depending on the specific wax blend you apply, and then scales that distance down for heavier riders who generate more drivetrain wear.</string>
+    <string name="label_rider_weight">Set Wax Life by Rider Weight (kg)</string>
+    <string name="label_wax_type">Wax Type: %1$s</string>
+    <string name="label_distance_unit">Distance Unit: %1$s</string>
+    <string name="label_rewax_alert">Rewax Alert Threshold: %1$d%%</string>
+    <string name="rewax_alert_desc">When your chain\'s remaining life falls below this percentage, it will turn red in the app and you will receive a notification to remind you to rewax.</string>
+    <string name="label_calculated_base">Calculated Base Wax Life (%1$s)</string>
+    <string name="calculated_base_desc">This base wax life is automatically calculated based on the Wax Type and Rider Weight above, but you can manually override it here if you prefer a custom baseline distance.</string>
+    <string name="activity_profiles_title">Activity Profiles</string>
+    <string name="activity_profiles_desc">The app automatically discovers your Karoo Activity Profiles as you start rides. Assign the correct Surface Type below to adjust your wear multipliers (e.g., Gravel riding removes more wax life per kilometer than Road riding).</string>
+    <string name="profile_title_format">Profile: %1$s</string>
+    <string name="label_remaining">Remaining (%1$s)</string>
+    <string name="button_rain">Rain</string>
+    <string name="button_rewax">Rewax</string>
+    <string name="dialog_rewax_title">Confirm Rewax</string>
+    <string name="dialog_rewax_text">Did you rewax this chain? This will reset the remaining distance to %1$s.</string>
+    <string name="dialog_rain_title">Confirm Rain Ride</string>
+    <string name="dialog_rain_text">Did you ride in the rain? This will instantly cut your remaining wax life in half.</string>
+    <string name="dialog_confirm">Yes</string>
+    <string name="dialog_cancel">Cancel</string>
+</resources>

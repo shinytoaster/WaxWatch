@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ExtensionInfo
+    id="waxwatch"
+    displayName="@string/app_name"
+    icon="@mipmap/ic_launcher"
+    scansDevices="false"
+    fitFile="false"
+    mapLayer="false">
+
+    <DataType
+        typeId="wax_life_pct"
+        displayName="Wax Life %"
+        description="Chain Wax Life Remaining Percentage"
+        graphical="false"
+        icon="@mipmap/ic_launcher" />
+
+    <DataType
+        typeId="wax_life_dist"
+        displayName="Wax Rem. Dist"
+        description="Chain Wax Life Remaining Distance"
+        graphical="false"
+        icon="@mipmap/ic_launcher" />
+
+</ExtensionInfo>

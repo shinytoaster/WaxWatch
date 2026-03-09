@@ -1,0 +1,46 @@
+# Local Gradle installation and SDK dependencies
+gradle-8.2/
+karoo-ext-aar/
+karoo-ext-src/
+*.zip
+
+# Android build outputs
+build/
+app/build/
+*/build/
+*.class
+*.dex
+*.apk
+*.aar
+*.ap_
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+gradlew
+gradlew.bat
+
+# Local configuration (machine-specific, never commit)
+local.properties
+*.keystore
+*.jks
+
+# IntelliJ / Android Studio — entire IDE directory
+.idea/
+
+# macOS
+.DS_Store
+Thumbs.db
+
+# Captures, profiling, logs
+captures/
+build.log
+*.log
+
+# Native build
+.externalNativeBuild/
+.cxx/
+
+# Misc project-specific
+gradle.zip
+crop_logo.ps1
