@@ -43,6 +43,20 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
 4. Connect your Hammerhead Karoo device via USB (ensure Developer Options are enabled on the Karoo).
 5. Build and Run the `app` configuration, deploying the APK straight to your device.
 
+## Installation
+
+If you just want to install WaxWatch without building from source:
+
+1. **Enable Developer Options on your Karoo**: Go to *Settings → Karoo System* and tap the firmware version number several times until a "Developer Options" menu appears. Enable it.
+2. **Download the latest APK** from the [Releases](../../releases) page of this repository.
+3. **Connect your Karoo to your PC via USB**.
+4. **Install the APK** using ADB:
+   ```
+   adb install WaxWatch-vX.X.X.apk
+   ```
+   If you don't have ADB, install [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools) and ensure your Karoo is detected (`adb devices`).
+5. **Restart your Karoo** after installation. WaxWatch will appear in the app list and begin tracking automatically when you start a ride.
+
 ## Usage
 
 1. Open the **WaxWatch** app from the Karoo App Launcher.
@@ -52,4 +66,4 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
 5. Once a profile appears, assign a **Surface Type** (Road, Mixed, or Gravel) and manually set the `Remaining` distance if your chain is already partially worn.
 6. *(Optional)* Add the `Wax Life %` or `Wax Rem. Dist` data fields to your ride screens if you want to monitor wax life mid-ride. Tracking continues in the background regardless.
 7. Ride! The extension will automatically decrement your wax life based on distance travelled and surface type.
-8. If you ride in the rain, open the WaxWatch app and hit the **Rain Button** for the affected profile to immediately cut the remaining wax life by 50%.
+8. If you ride in the rain, open the WaxWatch app and hit the **Rain Button** for the affected profile to immediately deduct 30% of that chain's maximum wax life from its remaining lifespan.
