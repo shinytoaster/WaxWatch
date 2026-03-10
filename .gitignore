@@ -16,9 +16,6 @@ app/build/
 
 # Gradle
 .gradle/
-gradle/wrapper/gradle-wrapper.jar
-gradlew
-gradlew.bat
 
 # Local configuration (machine-specific, never commit)
 local.properties
