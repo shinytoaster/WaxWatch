@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -115,7 +114,6 @@ fun PermissionWrapper(content: @Composable () -> Unit) {
 @Composable
 fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
     val context = LocalContext.current
-    val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     var riderWeight by remember { mutableFloatStateOf(repository.getRiderWeight().toFloat()) }
     var waxType by remember { mutableStateOf(repository.getWaxType()) }
@@ -315,7 +313,6 @@ fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
             ProfileCard(
                 state = state,
                 resolvedUnit = resolvedUnit,
-                baseWaxLife = baseWaxLife,
                 alertThresholdPercent = alertThresholdPercent,
                 onSurfaceTypeChanged = { newSurface ->
                     val newState = state.copy(surfaceType = newSurface)
@@ -324,7 +321,8 @@ fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
                     notifyExtension()
                 },
                 onRainSpash = {
-                    val newState = state.copy(remainingDistanceMeters = state.remainingDistanceMeters / 2.0)
+                    val penalty = state.maxLifeMeters * 0.30
+                    val newState = state.copy(remainingDistanceMeters = (state.remainingDistanceMeters - penalty).coerceAtLeast(0.0))
                     repository.saveWaxState(newState)
                     profiles = repository.getAllWaxStates().values.toList()
                     notifyExtension()
@@ -365,7 +363,6 @@ fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
 fun ProfileCard(
     state: WaxState,
     resolvedUnit: DistanceUnit,
-    baseWaxLife: Double,
     alertThresholdPercent: Int,
     onSurfaceTypeChanged: (SurfaceType) -> Unit,
     onRainSpash: () -> Unit,
@@ -374,7 +371,6 @@ fun ProfileCard(
     onMaxLifeChanged: (Double) -> Unit,
     onDelete: () -> Unit
 ) {
-    val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     var showRewaxConfirm by remember { mutableStateOf(false) }
     var showRainConfirm by remember { mutableStateOf(false) }
@@ -475,7 +471,7 @@ fun ProfileCard(
                 }
             }
             Text(
-                text = "Riding in wet conditions aggressively strips wax and invites rust. Tap the Rain button after a wet ride to immediately cut the remaining lifespan of this chain by 50%.",
+                text = "Riding in wet conditions aggressively strips wax and invites rust. Tap the Rain button after a wet ride to immediately deduct 30% of this chain's maximum wax life from its remaining lifespan.",
                 style = MaterialTheme.typography.bodySmall,
                 color = androidx.compose.ui.graphics.Color.Gray,
                 modifier = Modifier.padding(top = 8.dp)
@@ -508,7 +504,7 @@ fun ProfileCard(
         AlertDialog(
             onDismissRequest = { showRainConfirm = false },
             title = { Text("Confirm Rain / Wet Ride") },
-            text = { Text("Are you sure you want to reduce the remaining wax life by 50% for this profile?") },
+            text = { Text("Are you sure you want to deduct 30% of this chain's maximum wax life from its remaining lifespan?") },
             confirmButton = {
                 TextButton(onClick = {
                     onRainSpash()

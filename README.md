@@ -16,7 +16,7 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
   - Commute/Mixed: 1.2x wear
   - Gravel/Dirt: 1.5x wear
 - **Automatic Background Tracking**: Registers distance automatically in the background as you ride; no need to have the data field actively displayed on screen.
-- **Rain Button**: Instantly halves the remaining wax life of the current profile after a wet ride.
+- **Rain Button**: Deducts 30% of the profile's maximum wax life from its remaining lifespan after a wet ride — a fixed physical penalty regardless of how much wax is left.
 - **Visual Data Field**: Add the `Wax Life %` data field to your Karoo screens to view your chain's status at a glance.
 - **Rewax Alerts**: Set a low-life percentage threshold. Once breached during a ride, the Karoo will display a native Push Notification reminding you to rewax the chain.
 - **Unit System**: Defaults to automatic locale detection (miles for US/UK, kilometres everywhere else), with a manual override to force either unit.
