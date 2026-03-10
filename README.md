@@ -45,17 +45,33 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
 
 ## Installation
 
-If you just want to install WaxWatch without building from source:
+Download the latest APK from the [Releases](../../releases) page of this repository.
+
+### Option 1 — Hammerhead Companion App (easiest)
+
+The Karoo companion app supports installing extensions directly from a URL — no ADB or USB debugging required.
+
+1. Open the **Hammerhead companion app** on your phone.
+2. Navigate to the Extensions section and tap **Install from URL**.
+3. Paste the direct link to the latest `WaxWatch-vX.X.X.apk` asset from the [Releases](../../releases) page.
+4. Follow the on-screen prompts to install on your Karoo.
+
+> [!NOTE]
+> This method requires a recent Karoo firmware version and companion app. If the option isn't visible, use the ADB method below.
+
+### Option 2 — ADB via USB (fallback)
 
 1. **Enable Developer Options on your Karoo**: Go to *Settings → Karoo System* and tap the firmware version number several times until a "Developer Options" menu appears. Enable it.
-2. **Download the latest APK** from the [Releases](../../releases) page of this repository.
-3. **Connect your Karoo to your PC via USB**.
-4. **Install the APK** using ADB:
+2. **Install ADB** if you don't have it: download [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools).
+3. **Connect your Karoo via USB** and confirm it is detected:
+   ```
+   adb devices
+   ```
+4. **Install the APK**:
    ```
    adb install WaxWatch-vX.X.X.apk
    ```
-   If you don't have ADB, install [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools) and ensure your Karoo is detected (`adb devices`).
-5. **Restart your Karoo** after installation. WaxWatch will appear in the app list and begin tracking automatically when you start a ride.
+5. WaxWatch will appear in the Karoo app list and begin tracking automatically when you start a ride.
 
 ## Usage
 
