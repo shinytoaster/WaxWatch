@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ExtensionInfo
     id="waxwatch"
-    displayName="@string/app_name"
+    displayName="WaxWatch"
     icon="@mipmap/ic_launcher"
     scansDevices="false"
     fitFile="false"

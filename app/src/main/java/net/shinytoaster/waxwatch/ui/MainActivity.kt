@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
@@ -40,6 +41,7 @@ import net.shinytoaster.waxwatch.data.SurfaceType
 import net.shinytoaster.waxwatch.data.WaxRepository
 import net.shinytoaster.waxwatch.data.WaxState
 import net.shinytoaster.waxwatch.domain.WaxCalculator
+import net.shinytoaster.waxwatch.extension.WaxWatchExtension
 
 class MainActivity : ComponentActivity() {
 
@@ -135,9 +137,15 @@ fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
         }
     }
 
-    fun notifyExtension() {
-        val intent = Intent(WaxWatchConstants.ACTION_STATE_UPDATED)
-        context.sendBroadcast(intent)
+    fun notifyExtension(state: WaxState? = null) {
+        val intent = Intent(context, WaxWatchExtension::class.java)
+        intent.action = WaxWatchConstants.ACTION_STATE_UPDATED
+        if (state != null) {
+            intent.putExtra(WaxWatchConstants.EXTRA_PROFILE_ID, state.profileId)
+            intent.putExtra(WaxWatchConstants.EXTRA_REMAINING_METERS, state.remainingDistanceMeters)
+            intent.putExtra(WaxWatchConstants.EXTRA_MAX_LIFE_METERS, state.maxLifeMeters)
+        }
+        context.startService(intent)
     }
 
     LazyColumn(modifier = modifier.padding(16.dp).fillMaxSize()) {
@@ -308,7 +316,7 @@ fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
             }
         }
 
-        items(profiles) { state ->
+        items(profiles, key = { it.profileId }) { state ->
             val resolvedUnit = repository.resolveDistanceUnit()
             ProfileCard(
                 state = state,
@@ -318,27 +326,28 @@ fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
                     val newState = state.copy(surfaceType = newSurface)
                     repository.saveWaxState(newState)
                     profiles = repository.getAllWaxStates().values.toList()
-                    notifyExtension()
+                    notifyExtension(newState)
                 },
-                onRainSpash = {
+                onRainSplash = {
                     val penalty = state.maxLifeMeters * 0.30
-                    val newState = state.copy(remainingDistanceMeters = (state.remainingDistanceMeters - penalty).coerceAtLeast(0.0))
+                    val newRemaining = (state.remainingDistanceMeters - penalty).coerceAtLeast(0.0)
+                    val newState = state.copy(remainingDistanceMeters = newRemaining)
                     repository.saveWaxState(newState)
                     profiles = repository.getAllWaxStates().values.toList()
-                    notifyExtension()
+                    notifyExtension(newState)
                 },
                 onRewax = {
                     val newState = state.copy(remainingDistanceMeters = baseWaxLife, maxLifeMeters = baseWaxLife, alertTriggered = false)
                     repository.saveWaxState(newState)
                     profiles = repository.getAllWaxStates().values.toList()
-                    notifyExtension()
+                    notifyExtension(newState)
                 },
                 onRemainingDistanceChanged = { newDistMeters ->
                     val cappedDist = minOf(newDistMeters, state.maxLifeMeters)
                     val newState = state.copy(remainingDistanceMeters = maxOf(0.0, cappedDist))
                     repository.saveWaxState(newState)
                     profiles = repository.getAllWaxStates().values.toList()
-                    notifyExtension()
+                    notifyExtension(newState)
                 },
                 onMaxLifeChanged = { newMaxMeters ->
                     val cappedMax = maxOf(0.0, newMaxMeters)
@@ -346,7 +355,7 @@ fun WaxWatchScreen(modifier: Modifier = Modifier, repository: WaxRepository) {
                     val newState = state.copy(maxLifeMeters = cappedMax, remainingDistanceMeters = maxOf(0.0, cappedRemaining))
                     repository.saveWaxState(newState)
                     profiles = repository.getAllWaxStates().values.toList()
-                    notifyExtension()
+                    notifyExtension(newState)
                 },
                 onDelete = {
                     repository.deleteWaxState(state.profileId)
@@ -365,7 +374,7 @@ fun ProfileCard(
     resolvedUnit: DistanceUnit,
     alertThresholdPercent: Int,
     onSurfaceTypeChanged: (SurfaceType) -> Unit,
-    onRainSpash: () -> Unit,
+    onRainSplash: () -> Unit,
     onRewax: () -> Unit,
     onRemainingDistanceChanged: (Double) -> Unit,
     onMaxLifeChanged: (Double) -> Unit,
@@ -400,14 +409,13 @@ fun ProfileCard(
             val isMiles = resolvedUnit == DistanceUnit.MILES
             val unitLabel = if (isMiles) "mi" else "km"
             
-            // Remember keys use only profileId + unit so external value changes don't
-            // reinitialise the text while the user is actively editing.
-            var remainingText by remember(state.profileId, resolvedUnit) {
+            // Re-sync text fields when the underlying state changes externally (e.g. Rewax button)
+            var remainingText by remember(state.profileId, resolvedUnit, state.remainingDistanceMeters) {
                 val rem = if (isMiles) WaxCalculator.metersToMiles(state.remainingDistanceMeters)
                            else WaxCalculator.metersToKm(state.remainingDistanceMeters)
                 mutableStateOf(rem.toInt().toString())
             }
-            var maxLifeText by remember(state.profileId, resolvedUnit) {
+            var maxLifeText by remember(state.profileId, resolvedUnit, state.maxLifeMeters) {
                 val maxLife = if (isMiles) WaxCalculator.metersToMiles(state.maxLifeMeters)
                               else WaxCalculator.metersToKm(state.maxLifeMeters)
                 mutableStateOf(maxLife.toInt().toString())
@@ -417,14 +425,18 @@ fun ProfileCard(
                 maxLifeText.toDoubleOrNull()?.let { distValue ->
                     val distMeters = if (isMiles) WaxCalculator.milesToMeters(distValue)
                                      else WaxCalculator.kmToMeters(distValue)
-                    onMaxLifeChanged(distMeters)
+                    if (distMeters != state.maxLifeMeters) {
+                        onMaxLifeChanged(distMeters)
+                    }
                 }
             }
             fun commitRemaining() {
                 remainingText.toDoubleOrNull()?.let { distValue ->
                     val distMeters = if (isMiles) WaxCalculator.milesToMeters(distValue)
                                      else WaxCalculator.kmToMeters(distValue)
-                    onRemainingDistanceChanged(distMeters)
+                    if (distMeters != state.remainingDistanceMeters) {
+                        onRemainingDistanceChanged(distMeters)
+                    }
                 }
             }
 
@@ -439,7 +451,7 @@ fun ProfileCard(
                     label = { Text("Max ($unitLabel)") },
                     modifier = Modifier.weight(1f).onFocusChanged { if (!it.isFocused) commitMaxLife() },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { commitMaxLife() })
+                    keyboardActions = KeyboardActions(onNext = { commitMaxLife(); focusManager.moveFocus(FocusDirection.Next) })
                 )
                 OutlinedTextField(
                     value = remainingText,
@@ -507,7 +519,7 @@ fun ProfileCard(
             text = { Text("Are you sure you want to deduct 30% of this chain's maximum wax life from its remaining lifespan?") },
             confirmButton = {
                 TextButton(onClick = {
-                    onRainSpash()
+                    onRainSplash()
                     showRainConfirm = false
                 }) {
                     Text("Yes, Reduce")

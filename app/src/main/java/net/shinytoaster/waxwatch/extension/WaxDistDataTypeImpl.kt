@@ -5,40 +5,49 @@ import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.StreamState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import net.shinytoaster.waxwatch.data.DistanceUnit
 import net.shinytoaster.waxwatch.data.WaxRepository
 import net.shinytoaster.waxwatch.domain.WaxCalculator
 
+/**
+ * Streams the remaining wax distance to a Karoo data field.
+ *
+ * Uses the same StateFlow/coroutine pattern as [WaxLifeDataTypeImpl] — see that class for
+ * a full explanation of why this pattern is required by the Karoo SDK.
+ *
+ * Distance conversion to the user's preferred unit (km/mi) is applied on every emission
+ * so the Karoo display always shows the correct localised value.
+ */
 class WaxDistDataTypeImpl(
     private val repository: WaxRepository,
-    private val getRemainingMeters: () -> Double?
+    private val stateFlow: StateFlow<Pair<Double, Double>?>,
 ) : DataTypeImpl("waxwatch", "wax_life_dist") {
 
-    private val emitters = mutableListOf<Emitter<StreamState>>()
-
     override fun startStream(emitter: Emitter<StreamState>) {
-        emitters.add(emitter)
-        emitter.setCancellable {
-            emitters.remove(emitter)
+        val job = CoroutineScope(Dispatchers.IO).launch {
+            stateFlow.collect { state ->
+                if (state != null) {
+                    val (remainingMeters, _) = state
+                    val resolvedUnit = repository.resolveDistanceUnit()
+                    val displayVal = if (resolvedUnit == DistanceUnit.MILES) {
+                        WaxCalculator.metersToMiles(remainingMeters)
+                    } else {
+                        WaxCalculator.metersToKm(remainingMeters)
+                    }
+                    emitter.onNext(
+                        StreamState.Streaming(
+                            DataPoint(dataTypeId, mapOf(DataType.Field.SINGLE to displayVal))
+                        )
+                    )
+                } else {
+                    emitter.onNext(StreamState.Searching)
+                }
+            }
         }
-
-        val meters = getRemainingMeters()
-        if (meters != null) {
-            broadcastRemainingMeters(meters)
-        } else {
-            emitter.onNext(StreamState.Searching)
-        }
-    }
-
-    fun broadcastRemainingMeters(meters: Double) {
-        val resolvedUnit = repository.resolveDistanceUnit()
-        val displayVal = if (resolvedUnit == DistanceUnit.MILES) {
-            WaxCalculator.metersToMiles(meters)
-        } else {
-            WaxCalculator.metersToKm(meters)
-        }
-        
-        val event = StreamState.Streaming(DataPoint(dataTypeId, mapOf(DataType.Field.SINGLE to displayVal)))
-        emitters.forEach { it.onNext(event) }
+        emitter.setCancellable { job.cancel() }
     }
 }

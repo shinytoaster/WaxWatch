@@ -5,32 +5,39 @@ import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.DataPoint
 import io.hammerhead.karooext.models.DataType
 import io.hammerhead.karooext.models.StreamState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
+/**
+ * Streams the current wax life percentage to a Karoo data field.
+ *
+ * The correct Karoo SDK pattern is to collect a StateFlow inside a coroutine launched
+ * within startStream. The coroutine runs for the lifetime of the Karoo stream subscription
+ * and is cancelled automatically when Karoo stops consuming the field. Any update to the
+ * StateFlow (from app edits or ride distance events) is automatically pushed to the field
+ * without needing to maintain a list of emitters.
+ */
 class WaxLifeDataTypeImpl(
-    private val getCurrentPercentage: () -> Double?
+    private val stateFlow: StateFlow<Pair<Double, Double>?>,
 ) : DataTypeImpl("waxwatch", "wax_life_pct") {
 
-    private val emitters = mutableListOf<Emitter<StreamState>>()
-
     override fun startStream(emitter: Emitter<StreamState>) {
-        emitters.add(emitter)
-        emitter.setCancellable {
-            emitters.remove(emitter)
+        val job = CoroutineScope(Dispatchers.IO).launch {
+            stateFlow.collect { state ->
+                if (state != null) {
+                    val (_, pct) = state
+                    emitter.onNext(
+                        StreamState.Streaming(
+                            DataPoint(dataTypeId, mapOf(DataType.Field.SINGLE to pct.coerceIn(0.0, 100.0)))
+                        )
+                    )
+                } else {
+                    emitter.onNext(StreamState.Searching)
+                }
+            }
         }
-
-        val pct = getCurrentPercentage()
-        if (pct != null) {
-            val clampedPct = maxOf(0.0, minOf(100.0, pct))
-            emitter.onNext(StreamState.Streaming(DataPoint(dataTypeId, mapOf(DataType.Field.SINGLE to clampedPct))))
-        } else {
-            // Emitting Searching will show a loading/searching indicator instead of "No Sensor"
-            emitter.onNext(StreamState.Searching)
-        }
-    }
-
-    fun broadcastWaxLife(percentage: Double) {
-        val clampedPct = maxOf(0.0, minOf(100.0, percentage))
-        val event = StreamState.Streaming(DataPoint(dataTypeId, mapOf(DataType.Field.SINGLE to clampedPct)))
-        emitters.forEach { it.onNext(event) }
+        emitter.setCancellable { job.cancel() }
     }
 }

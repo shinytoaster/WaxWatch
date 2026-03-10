@@ -11,15 +11,18 @@ enum class DistanceUnit { SYSTEM, KILOMETERS, MILES }
 
 class WaxRepository(private val context: Context) {
     
+    @Suppress("DEPRECATION")
     private val prefs: SharedPreferences
-        get() = context.getSharedPreferences("wax_watch_prefs", Context.MODE_PRIVATE)
+        // MODE_MULTI_PROCESS forces a disk reload on each call, preventing stale reads
+        // in the extension process (which caches SharedPreferences separately from MainActivity).
+        get() = context.getSharedPreferences("wax_watch_prefs", Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS)
 
     fun getRiderWeight(): Double {
         return prefs.getFloat("rider_weight_kg", 75.0f).toDouble()
     }
 
     fun setRiderWeight(weightKg: Double) {
-        prefs.edit { putFloat("rider_weight_kg", weightKg.toFloat()) }
+        prefs.edit(commit = true) { putFloat("rider_weight_kg", weightKg.toFloat()) }
     }
 
     fun getWaxType(): WaxType {
@@ -32,7 +35,7 @@ class WaxRepository(private val context: Context) {
     }
 
     fun setWaxType(type: WaxType) {
-        prefs.edit { putString("wax_type", type.name) }
+        prefs.edit(commit = true) { putString("wax_type", type.name) }
     }
 
     fun getDistanceUnit(): DistanceUnit {
@@ -45,7 +48,7 @@ class WaxRepository(private val context: Context) {
     }
 
     fun setDistanceUnit(unit: DistanceUnit) {
-        prefs.edit { putString("distance_unit", unit.name) }
+        prefs.edit(commit = true) { putString("distance_unit", unit.name) }
     }
 
     fun resolveDistanceUnit(): DistanceUnit {
@@ -65,7 +68,7 @@ class WaxRepository(private val context: Context) {
     }
 
     fun setBaseWaxLifeMeters(meters: Double) {
-        prefs.edit { putFloat("base_wax_life_meters", meters.toFloat()) }
+        prefs.edit(commit = true) { putFloat("base_wax_life_meters", meters.toFloat()) }
     }
 
     fun getAlertThresholdPercent(): Int {
@@ -73,7 +76,7 @@ class WaxRepository(private val context: Context) {
     }
 
     fun setAlertThresholdPercent(percent: Int) {
-        prefs.edit { putInt("alert_threshold_percent", percent) }
+        prefs.edit(commit = true) { putInt("alert_threshold_percent", percent) }
     }
 
     private fun findCaseInsensitiveKey(profileId: String): String? {
@@ -116,21 +119,21 @@ class WaxRepository(private val context: Context) {
         }
         // Save using trimmed profile ID to prevent spacing issues
         val key = "wax_state_${state.profileId.trim()}"
-        prefs.edit { putString(key, json.toString()) }
+        prefs.edit(commit = true) { putString(key, json.toString()) }
 
         val profileIds = getSavedProfileIds().toMutableSet()
         if (profileIds.add(state.profileId.trim())) {
-            prefs.edit { putStringSet("all_profile_ids", profileIds) }
+            prefs.edit(commit = true) { putStringSet("all_profile_ids", profileIds) }
         }
     }
 
     fun deleteWaxState(profileId: String) {
         val actualKey = findCaseInsensitiveKey(profileId) ?: "wax_state_$profileId"
-        prefs.edit { remove(actualKey) }
+        prefs.edit(commit = true) { remove(actualKey) }
         val profileIds = getSavedProfileIds().toMutableSet()
         val toRemove = profileIds.find { it.trim().lowercase() == profileId.trim().lowercase() } ?: profileId
         if (profileIds.remove(toRemove)) {
-            prefs.edit { putStringSet("all_profile_ids", profileIds) }
+            prefs.edit(commit = true) { putStringSet("all_profile_ids", profileIds) }
         }
     }
 
