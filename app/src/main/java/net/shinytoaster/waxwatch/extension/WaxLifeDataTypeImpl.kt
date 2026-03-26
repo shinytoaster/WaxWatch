@@ -20,14 +20,14 @@ import kotlinx.coroutines.launch
  * without needing to maintain a list of emitters.
  */
 class WaxLifeDataTypeImpl(
-    private val stateFlow: StateFlow<Pair<Double, Double>?>,
+    private val stateFlow: StateFlow<Triple<Double, Double, Boolean>?>,
 ) : DataTypeImpl("waxwatch", "wax_life_pct") {
 
     override fun startStream(emitter: Emitter<StreamState>) {
         val job = CoroutineScope(Dispatchers.IO).launch {
             stateFlow.collect { state ->
                 if (state != null) {
-                    val (_, pct) = state
+                    val pct = state.second
                     emitter.onNext(
                         StreamState.Streaming(
                             DataPoint(dataTypeId, mapOf(DataType.Field.SINGLE to pct.coerceIn(0.0, 100.0)))

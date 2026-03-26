@@ -1,7 +1,6 @@
-# WaxWatch for Hammerhead Karoo
 
 <p align="center">
-  <img src="docs/images/logo.png" alt="WaxWatch Logo" width="600"/>
+  <img src="docs/images/logo.png" alt="WaxWatch for Hammerhead Karoo" width="600"/>
 </p>
 
 WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their chain wax life across multiple Activity Profiles. By considering the rider's weight and the surface type ridden on, it calculates a dynamic remaining lifespan for your chain wax, ensuring you re-wax your chain at the optimal time.
@@ -16,10 +15,8 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
   - Commute/Mixed: 1.2x wear
   - Gravel/Dirt: 1.5x wear
 - **Automatic Background Tracking**: Registers distance automatically in the background as you ride; no need to have the data field actively displayed on screen.
-- **Rain Button**: Deducts 30% of the profile's maximum wax life from its remaining lifespan after a wet ride — a fixed physical penalty regardless of how much wax is left.
-- **Visual Data Field**: Add the `Wax Life %` data field to your Karoo screens to view your chain's status at a glance.
-- **Rewax Alerts**: Set a low-life percentage threshold. Once breached during a ride, the Karoo will display a native Push Notification reminding you to rewax the chain.
-- **Unit System**: Defaults to automatic locale detection (miles for US/UK, kilometres everywhere else), with a manual override to force either unit.
+- **Rewax Alerts**: Set a custom low-life percentage threshold. Once breached during a ride, the Karoo displays a prominent, persistent red alert with the remaining wax distance and profile name, accompanied by a critical audio tone.
+- **Unit System**: Full support for Metric and Imperial units with automatic locale detection and manual override.
 
 ## Technical Details
 
@@ -49,12 +46,11 @@ Download the latest APK from the [Releases](../../releases) page of this reposit
 
 ### Option 1 — Hammerhead Companion App (easiest)
 
-The Karoo companion app supports installing extensions directly from a URL — no ADB or USB debugging required.
+The Karoo companion app supports installing extensions directly from your phone — no ADB or USB debugging required.
 
-1. Open the **Hammerhead companion app** on your phone.
-2. Navigate to the Extensions section and tap **Install from URL**.
-3. Paste the direct link to the latest `WaxWatch-vX.X.X.apk` asset from the [Releases](../../releases) page.
-4. Follow the on-screen prompts to install on your Karoo.
+1. Download the latest APK file on your phone browser from the [Releases](../../releases) page.
+2. Use the **Share** function on your phone to send the file to the **Hammerhead Companion App**.
+3. The Companion app will then prompt you to install it on your connected Karoo.
 
 > [!NOTE]
 > This method requires a recent Karoo firmware version and companion app. If the option isn't visible, use the ADB method below.
@@ -82,4 +78,4 @@ The Karoo companion app supports installing extensions directly from a URL — n
 5. Once a profile appears, assign a **Surface Type** (Road, Mixed, or Gravel) and manually set the `Remaining` distance if your chain is already partially worn.
 6. *(Optional)* Add the `Wax Life %` or `Wax Rem. Dist` data fields to your ride screens if you want to monitor wax life mid-ride. Tracking continues in the background regardless.
 7. Ride! The extension will automatically decrement your wax life based on distance travelled and surface type.
-8. If you ride in the rain, open the WaxWatch app and hit the **Rain Button** for the affected profile to immediately deduct 30% of that chain's maximum wax life from its remaining lifespan.
+8. If you ride in the rain, open the WaxWatch app, select the affected profile, and hit the **Rain Button**. This immediately deducts 30% of that chain's maximum wax life from its remaining lifespan — a fixed penalty to account for the accelerated wear in wet conditions.

@@ -1,19 +1,13 @@
 package net.shinytoaster.waxwatch.ui
 
-import android.Manifest
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,7 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,7 +37,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import net.shinytoaster.waxwatch.R
@@ -67,13 +59,14 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var currentProfileId by remember { mutableStateOf<String?>(null) }
-            var profilesMap by remember { mutableStateOf(repository.getAllWaxStates()) }
+            val viewModel = remember { ProfileListViewModel(repository) }
+            val profileStates by viewModel.profiles.collectAsState()
 
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
-                        profilesMap = repository.getAllWaxStates()
+                        viewModel.loadProfiles()
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
@@ -81,6 +74,7 @@ class MainActivity : ComponentActivity() {
                     lifecycleOwner.lifecycle.removeObserver(observer)
                 }
             }
+
 
             MaterialTheme {
                 Scaffold(
@@ -115,34 +109,61 @@ class MainActivity : ComponentActivity() {
                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                                     }
                                 }
+                            },
+                            actions = {
+                                if (currentProfileId != null) {
+                                    val state = repository.getWaxState(currentProfileId!!)
+                                    if (state != null) {
+                                        IconButton(onClick = {
+                                            val newState = state.copy(alertTriggered = false)
+                                            repository.saveWaxState(newState)
+                                            
+                                            val intent = Intent(this@MainActivity, WaxWatchExtension::class.java).apply {
+                                                action = WaxWatchConstants.ACTION_STATE_UPDATED
+                                                putExtra(WaxWatchConstants.EXTRA_PROFILE_ID, newState.profileId)
+                                                putExtra(WaxWatchConstants.EXTRA_REMAINING_METERS, newState.remainingDistanceMeters)
+                                                putExtra(WaxWatchConstants.EXTRA_MAX_LIFE_METERS, newState.maxLifeMeters)
+                                            }
+                                            startService(intent)
+                                            viewModel.loadProfiles()
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Notifications,
+                                                contentDescription = "Clear Alert",
+                                                tint = if (state.alertTriggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         ) 
                     }
                 ) { padding ->
-                    PermissionWrapper {
                         Box(modifier = Modifier.padding(padding)) {
                             if (currentProfileId == null) {
                                 WaxWatchScreen(
                                     repository = repository,
-                                    profiles = profilesMap.values.toList(),
-                                    onProfileClick = { currentProfileId = it }
+                                    profiles = profileStates,
+                                    onProfileClick = { currentProfileId = it },
+                                    onAlertReset = { id -> viewModel.resetWaxAlert(id, this@MainActivity) },
+                                    onRefresh = { viewModel.loadProfiles() }
                                 )
                             } else {
-                                val state = profilesMap[currentProfileId]
+                                val state = repository.getWaxState(currentProfileId!!)
                                 if (state != null) {
                                     ProfileDetailScreen(
                                         state = state,
                                         repository = repository,
                                         onBack = { 
-                                            profilesMap = repository.getAllWaxStates()
+                                            viewModel.loadProfiles()
                                             currentProfileId = null 
                                         },
                                         onDeleted = { 
-                                            profilesMap = repository.getAllWaxStates()
+                                            viewModel.loadProfiles()
                                             currentProfileId = null 
                                         },
                                         onStateChanged = { 
-                                            profilesMap = repository.getAllWaxStates()
+                                            viewModel.loadProfiles()
                                         }
                                     )
                                 } else {
@@ -150,94 +171,32 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                    }
                 }
             }
         }
     }
 }
 
-@Composable
-fun PermissionWrapper(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    var areNotificationsEnabled by remember {
-        mutableStateOf(checkNotificationsEnabled(context))
-    }
-
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            areNotificationsEnabled = isGranted
-        }
-    )
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                areNotificationsEnabled = checkNotificationsEnabled(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        if (!areNotificationsEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-
-    content()
-}
-
-private fun checkNotificationsEnabled(context: Context): Boolean {
-    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    if (!notificationManager.areNotificationsEnabled()) return false
-    
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-    } else {
-        true
-    }
-}
 
 @Composable
 fun WaxWatchScreen(
     repository: WaxRepository,
-    profiles: List<WaxState>,
-    onProfileClick: (String) -> Unit
+    profiles: List<ProfileUiState>,
+    onProfileClick: (String) -> Unit,
+    onAlertReset: (String) -> Unit,
+    onRefresh: () -> Unit
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(Unit) {
+        onRefresh()
+    }
     var riderWeight by remember { mutableFloatStateOf(repository.getRiderWeight().toFloat()) }
     var waxType by remember { mutableStateOf(repository.getWaxType()) }
     var distanceUnit by remember { mutableStateOf(repository.getDistanceUnit()) }
     var alertThresholdPercent by remember { mutableIntStateOf(repository.getAlertThresholdPercent()) }
     var baseWaxLife by remember { mutableStateOf(repository.getBaseWaxLifeMeters()) }
-    var notificationsEnabled by remember { mutableStateOf(checkNotificationsEnabled(context)) }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                notificationsEnabled = checkNotificationsEnabled(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            notificationsEnabled = isGranted
-        }
-    )
 
     fun notifyExtension() {
         val intent = Intent(context, WaxWatchExtension::class.java)
@@ -254,58 +213,6 @@ fun WaxWatchScreen(
                 color = Color.Gray
             )
             Spacer(modifier = Modifier.height(16.dp))
-
-            if (!notificationsEnabled) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Rewax alerts are disabled",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Text(
-                                "Enable notifications to receive alerts when your wax is low.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                        TextButton(onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = Uri.fromParts("package", context.packageName, null)
-                                }
-                                context.startActivity(intent)
-                            }
-                        }) {
-                            Text("Fix")
-                        }
-                    }
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Notifications, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Rewax alerts are active",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-                }
-            }
             
             var riderWeightText by remember { mutableStateOf(riderWeight.toInt().toString()) }
             fun commitRiderWeight() {
@@ -315,6 +222,7 @@ fun WaxWatchScreen(
                     val newLifeMeters = WaxCalculator.calculateMaxLifeMeters(weight.toDouble(), waxType)
                     baseWaxLife = newLifeMeters
                     repository.setBaseWaxLifeMeters(newLifeMeters)
+                    repository.resetAllAlerts()
                     notifyExtension()
                 }
             }
@@ -344,6 +252,7 @@ fun WaxWatchScreen(
                                 val newLifeMeters = WaxCalculator.calculateMaxLifeMeters(riderWeight.toDouble(), type)
                                 baseWaxLife = newLifeMeters
                                 repository.setBaseWaxLifeMeters(newLifeMeters)
+                                repository.resetAllAlerts()
                                 notifyExtension()
                                 waxExpanded = false
                             }
@@ -366,6 +275,7 @@ fun WaxWatchScreen(
                             onClick = {
                                 distanceUnit = unit
                                 repository.setDistanceUnit(unit)
+                                repository.resetAllAlerts()
                                 notifyExtension()
                                 unitExpanded = false
                             }
@@ -382,6 +292,7 @@ fun WaxWatchScreen(
                     val newInt = newVal.toInt()
                     alertThresholdPercent = newInt
                     repository.setAlertThresholdPercent(newInt)
+                    repository.resetAllAlerts()
                     notifyExtension()
                 },
                 valueRange = 0f..50f,
@@ -415,6 +326,7 @@ fun WaxWatchScreen(
                     }
                     baseWaxLife = meters
                     repository.setBaseWaxLifeMeters(meters)
+                    repository.resetAllAlerts()
                     notifyExtension()
                 }
             }
@@ -465,7 +377,7 @@ fun WaxWatchScreen(
             }
         }
 
-        items(profiles, key = { it.profileId }) { state ->
+        items(profiles, key = { it.id }) { state ->
             val resolvedUnit = repository.resolveDistanceUnit()
             val unitLabel = if (resolvedUnit == DistanceUnit.MILES) "mi" else "km"
             val displayRem = if (resolvedUnit == DistanceUnit.MILES) 
@@ -477,7 +389,7 @@ fun WaxWatchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clickable { onProfileClick(state.profileId) }
+                    .clickable { onProfileClick(state.id) }
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
@@ -485,11 +397,18 @@ fun WaxWatchScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(state.profileId, style = MaterialTheme.typography.titleMedium)
+                        Text(state.id, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "${displayRem.toInt()} $unitLabel remaining (${state.remainingPercentage.toInt()}%)",
+                            text = "${displayRem.toInt()} $unitLabel remaining (${state.remainingPct.toInt()}%)",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (state.remainingPercentage < alertThresholdPercent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (state.remainingPct < alertThresholdPercent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { onAlertReset(state.id) }) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Clear Alert",
+                            tint = if (state.alertTriggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
                         )
                     }
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Edit")
@@ -551,7 +470,7 @@ fun ProfileDetailScreen(
                     if (distMeters != state.maxLifeMeters) {
                         val cappedMax = maxOf(0.0, distMeters)
                         val cappedRemaining = minOf(state.remainingDistanceMeters, cappedMax)
-                        val newState = state.copy(maxLifeMeters = cappedMax, remainingDistanceMeters = maxOf(0.0, cappedRemaining))
+                        val newState = state.copy(maxLifeMeters = cappedMax, remainingDistanceMeters = maxOf(0.0, cappedRemaining), alertTriggered = false)
                         repository.saveWaxState(newState)
                         notifyExtension(newState)
                         onStateChanged()
@@ -564,7 +483,7 @@ fun ProfileDetailScreen(
                                      else WaxCalculator.kmToMeters(distValue)
                     if (distMeters != state.remainingDistanceMeters) {
                         val cappedDist = minOf(distMeters, state.maxLifeMeters)
-                        val newState = state.copy(remainingDistanceMeters = maxOf(0.0, cappedDist))
+                        val newState = state.copy(remainingDistanceMeters = maxOf(0.0, cappedDist), alertTriggered = false)
                         repository.saveWaxState(newState)
                         notifyExtension(newState)
                         onStateChanged()
@@ -598,12 +517,29 @@ fun ProfileDetailScreen(
                 SurfaceTypeSelector(
                     selectedType = state.surfaceType, 
                     onSelection = { newSurface ->
-                        val newState = state.copy(surfaceType = newSurface)
+                        val newState = state.copy(surfaceType = newSurface, alertTriggered = false)
                         repository.saveWaxState(newState)
                         notifyExtension(newState)
                         onStateChanged()
                     }
                 )
+
+                if (state.alertTriggered) {
+                    Button(
+                        onClick = {
+                            val newState = state.copy(alertTriggered = false)
+                            repository.saveWaxState(newState)
+                            notifyExtension(newState)
+                            onStateChanged()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Clear Active Alert")
+                    }
+                }
 
                 Button(
                     onClick = { showRewaxConfirm = true },

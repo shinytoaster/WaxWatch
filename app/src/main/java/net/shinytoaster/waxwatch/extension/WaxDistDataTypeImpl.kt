@@ -24,14 +24,14 @@ import net.shinytoaster.waxwatch.domain.WaxCalculator
  */
 class WaxDistDataTypeImpl(
     private val repository: WaxRepository,
-    private val stateFlow: StateFlow<Pair<Double, Double>?>,
+    private val stateFlow: StateFlow<Triple<Double, Double, Boolean>?>,
 ) : DataTypeImpl("waxwatch", "wax_life_dist") {
 
     override fun startStream(emitter: Emitter<StreamState>) {
         val job = CoroutineScope(Dispatchers.IO).launch {
             stateFlow.collect { state ->
                 if (state != null) {
-                    val (remainingMeters, _) = state
+                    val remainingMeters = state.first
                     val resolvedUnit = repository.resolveDistanceUnit()
                     val displayVal = if (resolvedUnit == DistanceUnit.MILES) {
                         WaxCalculator.metersToMiles(remainingMeters)

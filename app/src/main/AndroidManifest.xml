@@ -4,6 +4,8 @@
     <!-- Requires access to Karoo SDK features -->
     <uses-permission android:name="io.hammerhead.permission.KAROO_EXTENSION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -25,7 +27,8 @@
 
         <service
             android:name=".extension.WaxWatchExtension"
-            android:exported="true">
+            android:exported="true"
+            android:foregroundServiceType="dataSync">
             <intent-filter>
                 <action android:name="io.hammerhead.karooext.KAROO_EXTENSION" />
             </intent-filter>
@@ -34,6 +37,9 @@
             <meta-data
                 android:name="io.hammerhead.karooext.EXTENSION_INFO"
                 android:resource="@xml/extension_info" />
+            <meta-data
+                android:name="io.hammerhead.karooext.EXTENSION_TYPE"
+                android:value="DATA_FIELD" />
         </service>
 
     </application>

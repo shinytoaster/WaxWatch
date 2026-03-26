@@ -151,4 +151,14 @@ class WaxRepository(private val context: Context) {
         }
         return res
     }
+
+    fun resetAllAlerts() {
+        val states = getAllWaxStates()
+        states.values.forEach { state ->
+            if (state.alertTriggered) {
+                state.alertTriggered = false
+                saveWaxState(state)
+            }
+        }
+    }
 }

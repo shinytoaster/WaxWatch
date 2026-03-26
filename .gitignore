@@ -1,3 +1,13 @@
+# Ignore all hidden files and folders
+.*
+
+# BUT, do not ignore these specific essentials:
+!.gitignore
+!.github/
+!.editorconfig
+!.mvn/
+!.spec/
+
 # Local Gradle installation and SDK dependencies
 gradle-8.2/
 karoo-ext-aar/
@@ -8,14 +18,6 @@ karoo-ext-src/
 build/
 app/build/
 */build/
-*.class
-*.dex
-*.apk
-*.aar
-*.ap_
-
-# Gradle
-.gradle/
 
 # Local configuration (machine-specific, never commit)
 local.properties
@@ -29,11 +31,6 @@ local.properties
 *.hprof
 *.zip
 
-# IntelliJ / Android Studio — entire IDE directory
-.idea/
-
-# macOS
-.DS_Store
 Thumbs.db
 
 # Captures, profiling, logs
@@ -41,14 +38,10 @@ captures/
 build.log
 *.log
 
-# Native build
-.externalNativeBuild/
-.cxx/
-
 # Misc project-specific
 gradle.zip
 crop_logo.ps1
 build_out.txt
-.vscode/
 app/release/
 tmp-karoo-ext/
+
