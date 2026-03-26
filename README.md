@@ -18,6 +18,13 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
 - **Rewax Alerts**: Set a custom low-life percentage threshold. Once breached during a ride, the Karoo displays a prominent, persistent red alert with the remaining wax distance and profile name, accompanied by a critical audio tone.
 - **Unit System**: Full support for Metric and Imperial units with automatic locale detection and manual override.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/waxwatch1.png" alt="Main App Screen" width="300"/>
+  <img src="docs/images/waxwatch2.png" alt="Profile Detail" width="300"/>
+</p>
+
 ## Technical Details
 
 - **Language**: Kotlin
