@@ -5,6 +5,13 @@
 
 WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their chain wax life across multiple Activity Profiles. By considering the rider's weight and the surface type ridden on, it calculates a dynamic remaining lifespan for your chain wax, ensuring you re-wax your chain at the optimal time.
 
+## Compatibility
+
+> [!IMPORTANT]
+> **WaxWatch 1.0 specifically supports the New Karoo (2024 / Karoo 3) and newer models.**
+> 
+> Due to the use of the new Hammerhead Extension SDK, **Karoo 2 is NOT supported**. While the APK may install via ADB, the extension services and data fields will not function on legacy hardware.
+
 ## Features
 
 - **Profile-Specific Tracking**: Maps wax life independently to every user-defined Activity Profile on your Karoo.
@@ -37,7 +44,7 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
 ### Prerequisites
 
 - Android Studio Giraffe | 2022.3.1 or newer.
-- A Hammerhead Karoo device or a suitable Android environment for testing out Extension APIs.
+- A New Hammerhead Karoo (2024 / Karoo 3) or newer device.
 
 ### Building the Project
 
