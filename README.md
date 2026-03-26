@@ -55,9 +55,10 @@ Download the latest APK from the [Releases](../../releases) page of this reposit
 
 The Karoo companion app supports installing extensions directly from your phone — no ADB or USB debugging required.
 
-1. Download the latest APK file on your phone browser from the [Releases](../../releases) page.
-2. Use the **Share** function on your phone to send the file to the **Hammerhead Companion App**.
-3. The Companion app will then prompt you to install it on your connected Karoo.
+1. Go to the [Releases](../../releases) page on your phone's browser.
+2. Long-press (hold) the link for the latest APK to bring up the context menu.
+3. Select **Share link** and choose the **Hammerhead Companion App**.
+4. The Companion app will then prompt you to install it on your connected Karoo.
 
 > [!NOTE]
 > This method requires a recent Karoo firmware version and companion app. If the option isn't visible, use the ADB method below.
