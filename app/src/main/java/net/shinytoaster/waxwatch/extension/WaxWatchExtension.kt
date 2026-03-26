@@ -16,49 +16,26 @@ import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.StreamState
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import net.shinytoaster.waxwatch.WaxWatchConstants
 import net.shinytoaster.waxwatch.data.WaxRepository
 
 /**
  * WaxWatch Karoo Extension — background service that feeds data to the Karoo OS data fields.
- *
- * ## Architecture
- *
- * State is held in [waxState], a [MutableStateFlow] of (remainingMeters, percentage).
- * Both [WaxLifeDataTypeImpl] and [WaxDistDataTypeImpl] collect this flow inside coroutines
- * launched in their `startStream` override. Updating [waxState] from any source (app edits,
- * ride distance, profile change) automatically pushes a fresh emission to every active Karoo
- * data field — no manual emitter list management needed.
- *
- * ## Cross-process updates
- *
- * This service runs in a separate process from [net.shinytoaster.waxwatch.ui.MainActivity].
- * When the user edits profile values, MainActivity sends a `startService` intent with the
- * new remaining/max values as extras, which are handled in [onStartCommand] and immediately
- * applied to [waxState].
- *
- * ## ID restriction
- *
- * The Karoo Extension ID (first constructor parameter) must **not** contain periods (`.`).
- * Using the package name will cause a crash on connection.
  */
 class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
 
     private val repository by lazy { WaxRepository(applicationContext) }
     private lateinit var karooSystem: KarooSystemService
+    
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var distanceCollectionJob: Job? = null
 
     private var activeProfileName: String? = null
     private var lastDistanceMeters: Double = 0.0
     private var lastSaveTime: Long = 0L
 
-    /**
-     * Single source of truth: Pair(remainingMeters, percentage 0–100).
-     * Collected by both data type implementations inside their startStream coroutines.
-     */
     private val waxState = MutableStateFlow<Pair<Double, Double>?>(null)
 
     private val waxLifeType by lazy { WaxLifeDataTypeImpl(waxState) }
@@ -68,10 +45,6 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
         listOf(waxLifeType, waxDistType)
     }
 
-    /**
-     * Receives profile state updates from MainActivity via `startService` intent.
-     * Applies them directly to [waxState], bypassing the stale cross-process SharedPreferences cache.
-     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == WaxWatchConstants.ACTION_STATE_UPDATED) {
             val profileId = intent.getStringExtra(WaxWatchConstants.EXTRA_PROFILE_ID)
@@ -93,29 +66,30 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
         karooSystem = KarooSystemService(applicationContext)
         createNotificationChannel()
 
-        // Force lazy init so Karoo OS can discover the data types immediately on service start
         @Suppress("UNUSED_VARIABLE")
         val initTrigger = types.size
 
         karooSystem.connect { connected ->
             if (connected) {
-                // Launch coroutine to collect distance stream
-                CoroutineScope(Dispatchers.IO).launch {
-                    karooSystem.streamDataFlow(io.hammerhead.karooext.models.DataType.Type.DISTANCE)
-                        .collect { state ->
-                            if (state is StreamState.Streaming) {
-                                state.dataPoint.singleValue?.let { updateDistance(it) }
+                // Ensure we only have one distance collector running
+                distanceCollectionJob?.cancel()
+                distanceCollectionJob = serviceScope.launch(Dispatchers.IO) {
+                    try {
+                        karooSystem.streamDataFlow(io.hammerhead.karooext.models.DataType.Type.DISTANCE)
+                            .collect { state ->
+                                if (state is StreamState.Streaming) {
+                                    state.dataPoint.singleValue?.let { updateDistance(it) }
+                                }
                             }
-                        }
+                    } catch (e: Exception) {
+                        Log.e("WaxWatch", "Distance stream error", e)
+                    }
                 }
 
                 karooSystem.addConsumer { event: io.hammerhead.karooext.models.ActiveRideProfile ->
-                    Log.d("WaxWatch", "ActiveRideProfile: ${event.profile.name}")
                     if (activeProfileName != event.profile.name) {
-                        // Flush any pending changes to disk before switching profiles
                         flushStateToDisk()
                         activeProfileName = event.profile.name
-                        // Clear state so the fresh disk read isn't mixed with stale cached values
                         waxState.value = null
                         refreshActiveProfileData()
                     }
@@ -134,19 +108,11 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
 
     private fun refreshActiveProfileData() {
         val profileName = activeProfileName ?: repository.getSavedProfileIds().firstOrNull() ?: return
-        val state = repository.getWaxState(profileName) ?: run {
-            val newMax = repository.getBaseWaxLifeMeters()
-            val newState = net.shinytoaster.waxwatch.data.WaxState(profileName, newMax, newMax)
-            repository.saveWaxState(newState)
-            newState
-        }
+        val state = repository.getWaxState(profileName) ?: return
         
-        // Catch-up: If distance was already being tracked before the profile was identified,
-        // subtract it now from the freshly loaded state.
         if (activeProfileName != null && lastDistanceMeters > 0) {
             val consumed = lastDistanceMeters * state.surfaceType.multiplier
             state.remainingDistanceMeters = maxOf(0.0, state.remainingDistanceMeters - consumed)
-            // We don't save to disk here yet; the next updateDistance or flush will handle it.
         }
 
         waxState.value = Pair(state.remainingDistanceMeters, state.remainingPercentage)
@@ -163,10 +129,7 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
             return
         }
 
-        val currentProfileId = activeProfileName
-        if (currentProfileId == null) {
-            // Profile not yet identified, but we should keep tracking the distance
-            // so we can "catch up" once the profile is known.
+        val currentProfileId = activeProfileName ?: run {
             lastDistanceMeters = newTotalDistance
             return
         }
@@ -174,7 +137,6 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
         val state = repository.getWaxState(currentProfileId) ?: return
         val consumed = delta * state.surfaceType.multiplier
         
-        // Use in-memory waxState as the authoritative baseline to avoid stale SharedPreferences reads
         val baseRemaining = waxState.value?.first ?: state.remainingDistanceMeters
         val newRemaining = maxOf(0.0, baseRemaining - consumed)
         state.remainingDistanceMeters = newRemaining
@@ -190,7 +152,6 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
             }
         }
 
-        // Throttle disk writes to every 10 seconds to reduce overhead
         val now = System.currentTimeMillis()
         if (now - lastSaveTime > 10000) {
             repository.saveWaxState(state)
@@ -230,5 +191,10 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
         val channel = NotificationChannel("waxwatch_alerts", name, NotificationManager.IMPORTANCE_HIGH)
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(channel)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
     }
 }

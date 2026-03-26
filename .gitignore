@@ -49,3 +49,6 @@ build.log
 gradle.zip
 crop_logo.ps1
 build_out.txt
+.vscode/
+app/release/
+tmp-karoo-ext/
