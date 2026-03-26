@@ -43,8 +43,8 @@ WaxWatch is a Hammerhead Karoo extension designed to help cyclists track their c
 
 ### Prerequisites
 
-- Android Studio Giraffe | 2022.3.1 or newer.
-- A New Hammerhead Karoo (2024 / Karoo 3) or newer device.
+- **For building only**: Android Studio Giraffe | 2022.3.1 or newer.
+- **For usage**: A New Hammerhead Karoo (2024 / Karoo 3) or newer device.
 
 ### Building the Project
 
