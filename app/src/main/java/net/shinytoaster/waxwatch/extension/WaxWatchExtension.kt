@@ -17,6 +17,9 @@ import io.hammerhead.karooext.models.OnStreamState
 import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.StreamState
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import net.shinytoaster.waxwatch.WaxWatchConstants
 import net.shinytoaster.waxwatch.data.WaxRepository
 
@@ -50,6 +53,7 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
 
     private var activeProfileName: String? = null
     private var lastDistanceMeters: Double = 0.0
+    private var lastSaveTime: Long = 0L
 
     /**
      * Single source of truth: Pair(remainingMeters, percentage 0–100).
@@ -95,21 +99,21 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
 
         karooSystem.connect { connected ->
             if (connected) {
-                karooSystem.addConsumer(
-                    OnStreamState.StartStreaming(io.hammerhead.karooext.models.DataType.Type.DISTANCE)
-                ) { event: OnStreamState ->
-                    if (event.state is StreamState.Streaming) {
-                        val stream = event.state as StreamState.Streaming
-                        if (stream.dataPoint.dataTypeId == io.hammerhead.karooext.models.DataType.Type.DISTANCE) {
-                            stream.dataPoint.values[io.hammerhead.karooext.models.DataType.Field.SINGLE]
-                                ?.let { updateDistance(it) }
+                // Launch coroutine to collect distance stream
+                CoroutineScope(Dispatchers.IO).launch {
+                    karooSystem.streamDataFlow(io.hammerhead.karooext.models.DataType.Type.DISTANCE)
+                        .collect { state ->
+                            if (state is StreamState.Streaming) {
+                                state.dataPoint.singleValue?.let { updateDistance(it) }
+                            }
                         }
-                    }
                 }
 
                 karooSystem.addConsumer { event: io.hammerhead.karooext.models.ActiveRideProfile ->
                     Log.d("WaxWatch", "ActiveRideProfile: ${event.profile.name}")
                     if (activeProfileName != event.profile.name) {
+                        // Flush any pending changes to disk before switching profiles
+                        flushStateToDisk()
                         activeProfileName = event.profile.name
                         // Clear state so the fresh disk read isn't mixed with stale cached values
                         waxState.value = null
@@ -119,6 +123,7 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
 
                 karooSystem.addConsumer { rideState: RideState ->
                     if (rideState is RideState.Idle) {
+                        flushStateToDisk()
                         activeProfileName = null
                         lastDistanceMeters = 0.0
                     }
@@ -135,37 +140,74 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
             repository.saveWaxState(newState)
             newState
         }
+        
+        // Catch-up: If distance was already being tracked before the profile was identified,
+        // subtract it now from the freshly loaded state.
+        if (activeProfileName != null && lastDistanceMeters > 0) {
+            val consumed = lastDistanceMeters * state.surfaceType.multiplier
+            state.remainingDistanceMeters = maxOf(0.0, state.remainingDistanceMeters - consumed)
+            // We don't save to disk here yet; the next updateDistance or flush will handle it.
+        }
+
         waxState.value = Pair(state.remainingDistanceMeters, state.remainingPercentage)
     }
 
     private fun updateDistance(newTotalDistance: Double) {
-        val currentProfileId = activeProfileName ?: return
         if (lastDistanceMeters == 0.0) {
             lastDistanceMeters = newTotalDistance
             return
         }
         val delta = newTotalDistance - lastDistanceMeters
-        if (delta > 0) {
-            val state = repository.getWaxState(currentProfileId) ?: return
-            val consumed = delta * state.surfaceType.multiplier
-            // Use in-memory waxState as the authoritative baseline to avoid stale SharedPreferences reads
-            val baseRemaining = waxState.value?.first ?: state.remainingDistanceMeters
-            val newRemaining = maxOf(0.0, baseRemaining - consumed)
-            state.remainingDistanceMeters = newRemaining
-
-            val pct = state.remainingPercentage
-            waxState.value = Pair(newRemaining, pct)
-
-            if (!state.alertTriggered) {
-                val threshold = repository.getAlertThresholdPercent()
-                if (pct < threshold) {
-                    sendAlertNotification(currentProfileId)
-                    state.alertTriggered = true
-                }
-            }
-            repository.saveWaxState(state)
+        if (delta <= 0) {
+            lastDistanceMeters = newTotalDistance
+            return
         }
+
+        val currentProfileId = activeProfileName
+        if (currentProfileId == null) {
+            // Profile not yet identified, but we should keep tracking the distance
+            // so we can "catch up" once the profile is known.
+            lastDistanceMeters = newTotalDistance
+            return
+        }
+
+        val state = repository.getWaxState(currentProfileId) ?: return
+        val consumed = delta * state.surfaceType.multiplier
+        
+        // Use in-memory waxState as the authoritative baseline to avoid stale SharedPreferences reads
+        val baseRemaining = waxState.value?.first ?: state.remainingDistanceMeters
+        val newRemaining = maxOf(0.0, baseRemaining - consumed)
+        state.remainingDistanceMeters = newRemaining
+
+        val pct = state.remainingPercentage
+        waxState.value = Pair(newRemaining, pct)
+
+        if (!state.alertTriggered) {
+            val threshold = repository.getAlertThresholdPercent()
+            if (pct < threshold) {
+                sendAlertNotification(currentProfileId)
+                state.alertTriggered = true
+            }
+        }
+
+        // Throttle disk writes to every 10 seconds to reduce overhead
+        val now = System.currentTimeMillis()
+        if (now - lastSaveTime > 10000) {
+            repository.saveWaxState(state)
+            lastSaveTime = now
+        }
+        
         lastDistanceMeters = newTotalDistance
+    }
+
+    private fun flushStateToDisk() {
+        val currentProfileId = activeProfileName ?: return
+        val currentState = waxState.value ?: return
+        val state = repository.getWaxState(currentProfileId) ?: return
+        
+        state.remainingDistanceMeters = currentState.first
+        repository.saveWaxState(state)
+        lastSaveTime = System.currentTimeMillis()
     }
 
     private fun sendAlertNotification(profileName: String) {

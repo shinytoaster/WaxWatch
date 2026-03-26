@@ -48,3 +48,4 @@ build.log
 # Misc project-specific
 gradle.zip
 crop_logo.ps1
+build_out.txt

@@ -1,0 +1,40 @@
+# Build Artifacts & Cache
+.gradle/
+build/
+app/build/
+**/build/
+*.class
+*.dex
+*.apk
+*.aar
+*.ap_
+
+# IDE Configuration
+.idea/
+.vscode/
+*.iml
+
+# Sensitive Information
+local.properties
+*.keystore
+*.jks
+
+# Dependency & Distribution Files
+gradle-8.2/
+karoo-ext-aar/
+karoo-ext-src/
+*.zip
+gradle.zip
+
+# Logs & Temporary Files
+*.log
+build.log
+build_out.txt
+tmp-karoo-ext/
+
+# System Noise
+.DS_Store
+Thumbs.db
+
+# Scripts & Misc
+crop_logo.ps1
