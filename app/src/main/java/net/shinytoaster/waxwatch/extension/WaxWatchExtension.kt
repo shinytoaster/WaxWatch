@@ -23,7 +23,7 @@ import net.shinytoaster.waxwatch.data.WaxRepository
 /**
  * WaxWatch Karoo Extension — background service that feeds data to the Karoo OS data fields.
  */
-class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
+class WaxWatchExtension : KarooExtension("waxwatch", "1.1.0") {
 
     private val repository by lazy { WaxRepository(applicationContext) }
     private lateinit var karooSystem: KarooSystemService
@@ -243,13 +243,7 @@ class WaxWatchExtension : KarooExtension("waxwatch", "1.0") {
             )
             karooSystem.dispatch(alert)
 
-            // 2. Audio Alert (Critical Tone mimic)
-            val beep = PlayBeepPattern(listOf(
-                PlayBeepPattern.Tone(4000, 200),
-                PlayBeepPattern.Tone(0, 100),
-                PlayBeepPattern.Tone(4000, 500)
-            ))
-            karooSystem.dispatch(beep)
+            // Audio alert is disabled/muted to prevent jarring loud alarms during rides.
         }
     }
 
